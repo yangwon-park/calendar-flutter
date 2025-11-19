@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "411323035836",
+    "project_id": "flutter-calendar-couple-85393",
+    "storage_bucket": "flutter-calendar-couple-85393.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:411323035836:android:7e86b43c212c0457dae0b9",
+        "android_client_info": {
+          "package_name": "com.example.front_flutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDzfhRExNPqRw04lBnlNdpl3nx0q6S-HFQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
