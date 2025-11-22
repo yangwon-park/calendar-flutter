@@ -3,16 +3,13 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 
 class AuthService {
-  // TODO: Replace with your Web Client ID
-  final String _serverClientId = '853592160074-gebseh04j9dneoga5if3t4oa21g6lvi2.apps.googleusercontent.com';
-  
   late final GoogleSignIn _googleSignIn = GoogleSignIn(
-    serverClientId: _serverClientId,
     scopes: ['email', 'profile'],
   );
 
-  // Sign in with Google and send code to backend
-  Future<void> signInWithGoogle() async {
+  // Sign in with Google and send Access Token to backend
+  // Returns true if successful, false otherwise
+  Future<bool> signInWithGoogle() async {
     print('AuthService: signInWithGoogle called'); // Debug log
     try {
       // Trigger the authentication flow
@@ -20,27 +17,28 @@ class AuthService {
 
       if (googleUser == null) {
         // User canceled the sign-in
-        return;
+        return false;
       }
 
-      // Get the auth code
-      final String? authCode = googleUser.serverAuthCode;
+      // Get the authentication tokens
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final String? accessToken = googleAuth.accessToken;
       
-      if (authCode != null) {
-        print('Auth Code: $authCode');
-        await _sendAuthCodeToBackend(authCode, 'google');
+      if (accessToken != null) {
+        print('Google Access Token: $accessToken');
+        return await _sendTokenToBackend(accessToken, 'google');
       } else {
-        print('Failed to get auth code');
-        throw Exception('Failed to get auth code');
+        print('Failed to get access token');
+        return false;
       }
 
     } catch (e) {
       print('Google Sign In Error: $e');
-      rethrow;
+      return false;
     }
   }
 
-  Future<void> _sendAuthCodeToBackend(String code, String provider) async {
+  Future<bool> _sendTokenToBackend(String accessToken, String provider) async {
     try {
       // For iOS Simulator, use localhost. For physical device, use your computer's IP.
       final Uri url = Uri.parse('http://localhost:8080/api/auth/sign-in');
@@ -49,7 +47,7 @@ class AuthService {
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'code': code,
+          'accessToken': accessToken,
           'provider': provider,
         }),
       );
@@ -57,13 +55,14 @@ class AuthService {
       if (response.statusCode == 200) {
         print('Backend login success: ${response.body}');
         // TODO: Handle successful login (e.g., save JWT token)
+        return true;
       } else {
         print('Backend login failed: ${response.statusCode} - ${response.body}');
-        throw Exception('Backend login failed');
+        return false;
       }
     } catch (e) {
       print('Backend Connection Error: $e');
-      rethrow;
+      return false;
     }
   }
 

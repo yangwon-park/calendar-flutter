@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:front_flutter/src/features/authentication/services/auth_service.dart';
 import 'package:front_flutter/src/features/authentication/services/kakao_auth_service.dart';
+import 'package:front_flutter/src/features/home/screens/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -21,8 +22,16 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       print('LoginScreen: Calling AuthService.signInWithGoogle'); // Debug log
-      await _authService.signInWithGoogle();
-      // Navigation handled by auth state listener or callback
+      final success = await _authService.signInWithGoogle();
+      if (success && mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
+      } else if (!success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Google Login failed')),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -43,8 +52,16 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
     try {
-      await _kakaoAuthService.loginWithKakao();
-      // Navigation handled by auth state listener
+      final success = await _kakaoAuthService.loginWithKakao();
+      if (success && mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
+      } else if (!success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kakao Login failed')),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

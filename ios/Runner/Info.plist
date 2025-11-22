@@ -11,8 +11,7 @@
 			<array>
 				<!-- TODO: Replace this with the REVERSED_CLIENT_ID from your GoogleService-Info.plist -->
 				<string>com.googleusercontent.apps.853592160074-13tl1qfbmgcr2b2mpoudk8k9df0nlulk</string>
-				<!-- TODO: Replace with kakao + your Native App Key -->
-				<string>kakaoYOUR_NATIVE_APP_KEY</string>
+				<string>kakao92146bf0744fd09558e95de9c9f4249a</string>
 			</array>
 		</dict>
 	</array>
