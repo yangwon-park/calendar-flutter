@@ -1,74 +1,74 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:convert';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:http/http.dart' as http;
 
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  // TODO: Replace with your Web Client ID
+  final String _serverClientId = '853592160074-gebseh04j9dneoga5if3t4oa21g6lvi2.apps.googleusercontent.com';
+  
+  late final GoogleSignIn _googleSignIn = GoogleSignIn(
+    serverClientId: _serverClientId,
+    scopes: ['email', 'profile'],
+  );
 
-  // Stream of auth changes
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
-
-  // Sign in with email and password
-  Future<UserCredential> signInWithEmailAndPassword(
-      String email, String password) async {
-    try {
-      return await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  // Sign up with email and password
-  Future<UserCredential> createUserWithEmailAndPassword(
-      String email, String password) async {
-    try {
-      print('Attempting to create user: $email'); // Debug log
-      return await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-    } catch (e) {
-      print('AuthService Error: $e'); // Debug log
-      rethrow;
-    }
-  }
-
-  // Sign in with Google
-  Future<UserCredential> signInWithGoogle() async {
+  // Sign in with Google and send code to backend
+  Future<void> signInWithGoogle() async {
+    print('AuthService: signInWithGoogle called'); // Debug log
     try {
       // Trigger the authentication flow
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
       if (googleUser == null) {
-        throw FirebaseAuthException(
-          code: 'ERROR_ABORTED_BY_USER',
-          message: 'Sign in aborted by user',
-        );
+        // User canceled the sign-in
+        return;
       }
 
-      // Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
+      // Get the auth code
+      final String? authCode = googleUser.serverAuthCode;
+      
+      if (authCode != null) {
+        print('Auth Code: $authCode');
+        await _sendAuthCodeToBackend(authCode, 'google');
+      } else {
+        print('Failed to get auth code');
+        throw Exception('Failed to get auth code');
+      }
 
-      // Create a new credential
-      final OAuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      // Sign in to Firebase with the Google [UserCredential]
-      return await _auth.signInWithCredential(credential);
     } catch (e) {
       print('Google Sign In Error: $e');
       rethrow;
     }
   }
 
+  Future<void> _sendAuthCodeToBackend(String code, String provider) async {
+    try {
+      // For iOS Simulator, use localhost. For physical device, use your computer's IP.
+      final Uri url = Uri.parse('http://localhost:8080/api/auth/sign-in');
+      
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'code': code,
+          'provider': provider,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        print('Backend login success: ${response.body}');
+        // TODO: Handle successful login (e.g., save JWT token)
+      } else {
+        print('Backend login failed: ${response.statusCode} - ${response.body}');
+        throw Exception('Backend login failed');
+      }
+    } catch (e) {
+      print('Backend Connection Error: $e');
+      rethrow;
+    }
+  }
+
   // Sign out
   Future<void> signOut() async {
-    await GoogleSignIn().signOut(); // Also sign out from Google
-    await _auth.signOut();
+    await _googleSignIn.signOut();
   }
 }
