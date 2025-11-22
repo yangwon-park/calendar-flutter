@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:front_flutter/src/features/authentication/services/auth_service.dart';
+import 'package:front_flutter/src/features/events/models/category_model.dart';
+import 'package:front_flutter/src/features/events/models/event_model.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -12,6 +14,169 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
+  Map<DateTime, List<Event>> _events = {};
+  List<Category> _categories = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDay = _focusedDay;
+    // Initialize default categories
+    _categories = [
+      Category(id: '1', name: '일정', emoticon: '📅'),
+      Category(id: '2', name: '기념일', emoticon: '❤️'),
+      Category(id: '3', name: '운동', emoticon: '💪'),
+    ];
+  }
+
+  List<Event> _getEventsForDay(DateTime day) {
+    return _events[day] ?? [];
+  }
+
+  void _addEvent(String title, String categoryId) {
+    if (_selectedDay != null) {
+      final event = Event(
+        id: DateTime.now().toString(),
+        title: title,
+        date: _selectedDay!,
+        categoryId: categoryId,
+      );
+
+      setState(() {
+        if (_events[_selectedDay!] != null) {
+          _events[_selectedDay!]!.add(event);
+        } else {
+          _events[_selectedDay!] = [event];
+        }
+      });
+    }
+  }
+
+  void _addCategory(String name, String emoticon) {
+    setState(() {
+      _categories.add(Category(
+        id: DateTime.now().toString(),
+        name: name,
+        emoticon: emoticon,
+      ));
+    });
+  }
+
+  void _showAddCategoryDialog() {
+    final TextEditingController nameController = TextEditingController();
+    final TextEditingController emoticonController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Add Category'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Category Name'),
+                autofocus: true,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: emoticonController,
+                decoration: const InputDecoration(labelText: 'Emoticon (Emoji)'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (nameController.text.isNotEmpty &&
+                    emoticonController.text.isNotEmpty) {
+                  _addCategory(nameController.text, emoticonController.text);
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showAddEventDialog() {
+    final TextEditingController titleController = TextEditingController();
+    String selectedCategoryId = _categories.first.id;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                left: 16,
+                right: 16,
+                top: 16,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: titleController,
+                    decoration: const InputDecoration(labelText: 'Event Title'),
+                    autofocus: true,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Text('Category: '),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: DropdownButton<String>(
+                          value: selectedCategoryId,
+                          isExpanded: true,
+                          items: _categories.map((category) {
+                            return DropdownMenuItem(
+                              value: category.id,
+                              child: Text('${category.emoticon} ${category.name}'),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setModalState(() {
+                                selectedCategoryId = value;
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      if (titleController.text.isNotEmpty) {
+                        _addEvent(titleController.text, selectedCategoryId);
+                        Navigator.pop(context);
+                      }
+                    },
+                    child: const Text('Add Event'),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +214,8 @@ class _HomeScreenState extends State<HomeScreen> {
             onPageChanged: (focusedDay) {
               _focusedDay = focusedDay;
             },
-            calendarStyle: CalendarStyle(
+            eventLoader: _getEventsForDay,
+            calendarStyle: const CalendarStyle(
               todayDecoration: BoxDecoration(
                 color: Colors.blue,
                 shape: BoxShape.circle,
@@ -59,7 +225,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 shape: BoxShape.circle,
               ),
             ),
-            headerStyle: HeaderStyle(
+            headerStyle: const HeaderStyle(
               formatButtonVisible: false,
               titleCentered: true,
             ),
@@ -95,19 +261,67 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
                 return null;
               },
+              markerBuilder: (context, day, events) {
+                if (events.isEmpty) return null;
+                
+                // Show up to 3 emoticons
+                final eventList = events.cast<Event>();
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: eventList.take(3).map((event) {
+                    final category = _categories.firstWhere(
+                      (c) => c.id == event.categoryId,
+                      orElse: () => _categories.first,
+                    );
+                    return Text(
+                      category.emoticon,
+                      style: const TextStyle(fontSize: 10),
+                    );
+                  }).toList(),
+                );
+              },
             ),
           ),
-          const SizedBox(height: 20),
-          if (_selectedDay != null)
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                'Selected: ${_selectedDay!.year}-${_selectedDay!.month.toString().padLeft(2, '0')}-${_selectedDay!.day.toString().padLeft(2, '0')}',
-                style: const TextStyle(fontSize: 16),
-              ),
+          const SizedBox(height: 8.0),
+          Expanded(
+            child: ListView(
+              children: _getEventsForDay(_selectedDay ?? _focusedDay)
+                  .map((event) {
+                    final category = _categories.firstWhere(
+                      (c) => c.id == event.categoryId,
+                      orElse: () => _categories.first,
+                    );
+                    return ListTile(
+                      leading: Text(
+                        category.emoticon,
+                        style: const TextStyle(fontSize: 24),
+                      ),
+                      title: Text(event.title),
+                      subtitle: Text(category.name),
+                    );
+                  })
+                  .toList(),
             ),
+          ),
+        ],
+      ),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'add_category',
+            onPressed: _showAddCategoryDialog,
+            child: const Icon(Icons.category),
+          ),
+          const SizedBox(height: 10),
+          FloatingActionButton(
+            heroTag: 'add_event',
+            onPressed: _showAddEventDialog,
+            child: const Icon(Icons.add),
+          ),
         ],
       ),
     );
   }
 }
+
