@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:front_flutter/src/features/authentication/screens/login_screen.dart';
+import 'package:front_flutter/src/features/home/screens/home_screen.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  await initializeDateFormatting();
   KakaoSdk.init(nativeAppKey: '92146bf0744fd09558e95de9c9f4249a');
 
   runApp(const MyApp());
@@ -22,6 +25,10 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: const LoginScreen(),
+      routes: {
+        '/login': (context) => const LoginScreen(),
+        '/home': (context) => HomeScreen(),
+      },
     );
   }
 }

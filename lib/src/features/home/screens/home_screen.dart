@@ -33,6 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Column(
         children: [
           TableCalendar(
+            locale: 'ko_KR',
             firstDay: DateTime.utc(2020, 1, 1),
             lastDay: DateTime.utc(2030, 12, 31),
             focusedDay: _focusedDay,
@@ -61,6 +62,39 @@ class _HomeScreenState extends State<HomeScreen> {
             headerStyle: HeaderStyle(
               formatButtonVisible: false,
               titleCentered: true,
+            ),
+            calendarBuilders: CalendarBuilders(
+              defaultBuilder: (context, day, focusedDay) {
+                if (day.weekday == DateTime.sunday) {
+                  return Center(
+                    child: Text(
+                      '${day.day}',
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  );
+                }
+                return null;
+              },
+              dowBuilder: (context, day) {
+                if (day.weekday == DateTime.sunday) {
+                  final text = const {
+                    DateTime.sunday: '일',
+                    DateTime.monday: '월',
+                    DateTime.tuesday: '화',
+                    DateTime.wednesday: '수',
+                    DateTime.thursday: '목',
+                    DateTime.friday: '금',
+                    DateTime.saturday: '토',
+                  }[day.weekday]!;
+                  return Center(
+                    child: Text(
+                      text,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  );
+                }
+                return null;
+              },
             ),
           ),
           const SizedBox(height: 20),
