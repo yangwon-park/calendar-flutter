@@ -57,9 +57,13 @@ class AuthService {
         print('Backend login success: ${response.body}');
         final data = jsonDecode(response.body);
         final String? backendToken = data['data']['accessToken'];
+        final String? refreshToken = data['data']['refreshToken'];
         
         if (backendToken != null) {
           await StorageService().saveToken(backendToken);
+          if (refreshToken != null) {
+            await StorageService().saveRefreshToken(refreshToken);
+          }
           return true;
         }
         return false; // If backendToken is null despite 200 status
