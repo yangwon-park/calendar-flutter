@@ -19,6 +19,9 @@ class ApiService {
       if (accessToken != null) 'Authorization': 'Bearer $accessToken',
       ...?headers,
     };
+    
+    print('ApiService: POST $url');
+    print('ApiService: Headers: $requestHeaders');
 
     var response = await http.post(url, headers: requestHeaders, body: body);
 
