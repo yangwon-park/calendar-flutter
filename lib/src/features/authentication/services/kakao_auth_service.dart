@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
+import 'package:front_flutter/src/core/services/storage_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 
@@ -41,8 +42,14 @@ class KakaoAuthService {
 
       if (response.statusCode == 200) {
         print('Backend login success: ${response.body}');
-        // TODO: Handle backend response (e.g., save JWT token)
-        return true;
+        final data = jsonDecode(response.body);
+        final String? backendToken = data['data']['accessToken'];
+        
+        if (backendToken != null) {
+          await StorageService().saveToken(backendToken);
+          return true;
+        }
+        return false;
       } else {
         print('Backend login failed: ${response.statusCode} - ${response.body}');
         return false;
@@ -51,5 +58,14 @@ class KakaoAuthService {
       print('Kakao Login Error: $e');
       return false;
     }
+  }
+
+  Future<void> logout() async {
+    try {
+      await UserApi.instance.logout();
+    } catch (e) {
+      print('Kakao Logout Error: $e');
+    }
+    await StorageService().deleteToken();
   }
 }

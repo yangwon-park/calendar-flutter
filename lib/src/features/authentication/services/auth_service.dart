@@ -1,16 +1,17 @@
 import 'dart:convert';
+import 'package:front_flutter/src/core/services/storage_service.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 
 class AuthService {
-  late final GoogleSignIn _googleSignIn = GoogleSignIn(
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['email', 'profile'],
   );
 
   // Sign in with Google and send Access Token to backend
   // Returns true if successful, false otherwise
   Future<bool> signInWithGoogle() async {
-    print('AuthService: signInWithGoogle called'); // Debug log
+    print('AuthService: signInWithGoogle called');
     try {
       // Trigger the authentication flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
@@ -32,8 +33,8 @@ class AuthService {
         return false;
       }
 
-    } catch (e) {
-      print('Google Sign In Error: $e');
+    } catch (error) {
+      print('Google Sign-In Error: $error');
       return false;
     }
   }
@@ -54,8 +55,14 @@ class AuthService {
 
       if (response.statusCode == 200) {
         print('Backend login success: ${response.body}');
-        // TODO: Handle successful login (e.g., save JWT token)
-        return true;
+        final data = jsonDecode(response.body);
+        final String? backendToken = data['data']['accessToken'];
+        
+        if (backendToken != null) {
+          await StorageService().saveToken(backendToken);
+          return true;
+        }
+        return false; // If backendToken is null despite 200 status
       } else {
         print('Backend login failed: ${response.statusCode} - ${response.body}');
         return false;
@@ -69,5 +76,6 @@ class AuthService {
   // Sign out
   Future<void> signOut() async {
     await _googleSignIn.signOut();
+    await StorageService().deleteToken();
   }
 }

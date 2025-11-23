@@ -185,12 +185,9 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('Couple Calendar'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await AuthService().signOut();
-              if (context.mounted) {
-                Navigator.of(context).pushReplacementNamed('/login');
-              }
+            icon: const Icon(Icons.person),
+            onPressed: () {
+              Navigator.of(context).pushNamed('/mypage');
             },
           ),
         ],
