@@ -68,6 +68,10 @@ class KakaoAuthService {
     try {
       await UserApi.instance.logout();
     } catch (e) {
+      // Ignore error if token doesn't exist (user logged in with Google or other provider)
+      if (e.toString().contains("authentication token doesn't exist")) {
+        return;
+      }
       print('Kakao Logout Error: $e');
     }
     await StorageService().deleteToken();

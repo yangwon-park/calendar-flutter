@@ -77,6 +77,35 @@ class AuthService {
     }
   }
 
+  // Logout from Backend
+  Future<void> logoutFromBackend() async {
+    try {
+      final token = await StorageService().getToken();
+      if (token != null) {
+        // Use the same base URL as sign-in but point to /logout
+        // Note: Ideally base URL should be a constant or environment variable
+        final Uri url = Uri.parse('http://localhost:8080/api/auth/logout');
+        
+        final response = await http.delete(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        );
+
+        if (response.statusCode == 200) {
+          print('Backend logout success');
+        } else {
+          print('Backend logout failed: ${response.statusCode} - ${response.body}');
+        }
+      }
+    } catch (e) {
+      print('Backend Logout Error: $e');
+      // We continue with local logout even if backend fails
+    }
+  }
+
   // Sign out
   Future<void> signOut() async {
     await _googleSignIn.signOut();

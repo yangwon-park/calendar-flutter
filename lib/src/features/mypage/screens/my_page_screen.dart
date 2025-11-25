@@ -87,6 +87,11 @@ class _MyPageScreenState extends State<MyPageScreen> {
             title: const Text('로그아웃', style: TextStyle(color: Colors.red)),
             onTap: () async {
               // Call both logouts to ensure token is cleared and provider session is ended
+              try {
+                await AuthService().logoutFromBackend();
+              } catch (e) {
+                print('Backend logout error: $e');
+              }
               await AuthService().signOut();
               await KakaoAuthService().logout();
               
