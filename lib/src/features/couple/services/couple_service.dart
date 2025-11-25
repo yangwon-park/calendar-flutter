@@ -25,7 +25,7 @@ class CoupleService {
   Future<bool> connectCouple(String code) async {
     try {
       final response = await ApiService().post(
-        '/api/couple/connect',
+        '/api/couples',
         body: jsonEncode({'invitationCode': code}),
       );
 

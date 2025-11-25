@@ -119,6 +119,9 @@ class _ConnectCoupleBottomSheetState extends State<ConnectCoupleBottomSheet> {
   Timer? _timer;
   Duration _remainingTime = Duration.zero;
 
+  final TextEditingController _codeController = TextEditingController();
+  bool _isConnecting = false;
+
   @override
   void initState() {
     super.initState();
@@ -128,6 +131,7 @@ class _ConnectCoupleBottomSheetState extends State<ConnectCoupleBottomSheet> {
   @override
   void dispose() {
     _timer?.cancel();
+    _codeController.dispose();
     super.dispose();
   }
 
@@ -328,72 +332,64 @@ class _ConnectCoupleBottomSheetState extends State<ConnectCoupleBottomSheet> {
   }
 
   Widget _buildEnterCodeTab() {
-    final TextEditingController codeController = TextEditingController();
-    bool isLoading = false;
-
-    return StatefulBuilder(
-      builder: (context, setState) {
-        return Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                '연인에게 받은 코드를 입력하세요',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: codeController,
-                textAlign: TextAlign.center,
-                decoration: const InputDecoration(
-                  hintText: '초대 코드 입력',
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(vertical: 16),
-                ),
-                style: const TextStyle(fontSize: 24, letterSpacing: 2.0),
-              ),
-              const SizedBox(height: 30),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: isLoading
-                      ? null
-                      : () async {
-                          if (codeController.text.isEmpty) return;
-                          
-                          setState(() => isLoading = true);
-                          final success = await CoupleService().connectCouple(codeController.text);
-                          setState(() => isLoading = false);
-
-                          if (success) {
-                            if (context.mounted) {
-                              Navigator.pop(context); // Close BottomSheet
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('커플 연결 성공! 🎉')),
-                              );
-                              // Note: We can't easily update parent state directly from here without a callback
-                              // But since we are popping, the parent's then() block will run if we set it up.
-                              // For now, the user just wants the bottom sheet to update.
-                            }
-                          } else {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('연결 실패. 코드를 확인해주세요.')),
-                              );
-                            }
-                          }
-                        },
-                  child: isLoading
-                      ? const CircularProgressIndicator()
-                      : const Text('연결하기'),
-                ),
-              ),
-            ],
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text(
+            '연인에게 받은 코드를 입력하세요',
+            style: TextStyle(fontSize: 16, color: Colors.grey),
           ),
-        );
-      },
+          const SizedBox(height: 20),
+          TextField(
+            controller: _codeController,
+            textAlign: TextAlign.center,
+            decoration: const InputDecoration(
+              hintText: '초대 코드 입력',
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(vertical: 16),
+            ),
+            style: const TextStyle(fontSize: 24, letterSpacing: 2.0),
+          ),
+          const SizedBox(height: 30),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: _isConnecting
+                  ? null
+                  : () async {
+                      if (_codeController.text.isEmpty) return;
+                      
+                      setState(() => _isConnecting = true);
+                      final success = await CoupleService().connectCouple(_codeController.text);
+                      if (mounted) {
+                        setState(() => _isConnecting = false);
+                      }
+
+                      if (success) {
+                        if (context.mounted) {
+                          Navigator.pop(context); // Close BottomSheet
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('커플 연결 성공! 🎉')),
+                          );
+                        }
+                      } else {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('연결 실패. 코드를 확인해주세요.')),
+                          );
+                        }
+                      }
+                    },
+              child: _isConnecting
+                  ? const CircularProgressIndicator()
+                  : const Text('연결하기'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
