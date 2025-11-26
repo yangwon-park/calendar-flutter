@@ -53,6 +53,111 @@ class ApiService {
     return response;
   }
 
+  Future<http.Response> get(String endpoint, {Map<String, String>? headers}) async {
+    final url = Uri.parse('$_backendUrl$endpoint');
+    String? accessToken = await StorageService().getToken();
+
+    final Map<String, String> requestHeaders = {
+      'Content-Type': 'application/json',
+      if (accessToken != null) 'Authorization': 'Bearer $accessToken',
+      ...?headers,
+    };
+    
+    print('ApiService: GET $url');
+    print('ApiService: Headers: $requestHeaders');
+
+    var response = await http.get(url, headers: requestHeaders);
+
+    // Check for Token Expiry (4002)
+    if (response.statusCode == 4003 || (response.statusCode == 4002)) {
+       final responseBody = jsonDecode(utf8.decode(response.bodyBytes));
+       if (responseBody is Map && responseBody['status'] == 4002) {
+         print('Token expired (4002). Attempting refresh...');
+         final success = await _refreshToken();
+         if (success) {
+           // Retry original request with new token
+           accessToken = await StorageService().getToken();
+           requestHeaders['Authorization'] = 'Bearer $accessToken';
+           response = await http.get(url, headers: requestHeaders);
+         } else {
+           print('Token refresh failed.');
+         }
+       }
+    }
+
+    return response;
+  }
+
+  Future<http.Response> put(String endpoint, {Map<String, String>? headers, Object? body}) async {
+    final url = Uri.parse('$_backendUrl$endpoint');
+    String? accessToken = await StorageService().getToken();
+
+    final Map<String, String> requestHeaders = {
+      'Content-Type': 'application/json',
+      if (accessToken != null) 'Authorization': 'Bearer $accessToken',
+      ...?headers,
+    };
+    
+    print('ApiService: PUT $url');
+    print('ApiService: Headers: $requestHeaders');
+
+    var response = await http.put(url, headers: requestHeaders, body: body);
+
+    // Check for Token Expiry (4002)
+    if (response.statusCode == 4003 || (response.statusCode == 4002)) {
+       final responseBody = jsonDecode(utf8.decode(response.bodyBytes));
+       if (responseBody is Map && responseBody['status'] == 4002) {
+         print('Token expired (4002). Attempting refresh...');
+         final success = await _refreshToken();
+         if (success) {
+           // Retry original request with new token
+           accessToken = await StorageService().getToken();
+           requestHeaders['Authorization'] = 'Bearer $accessToken';
+           response = await http.put(url, headers: requestHeaders, body: body);
+         } else {
+           print('Token refresh failed.');
+         }
+       }
+    }
+
+    return response;
+  }
+
+  Future<http.Response> delete(String endpoint, {Map<String, String>? headers, Object? body}) async {
+    final url = Uri.parse('$_backendUrl$endpoint');
+    String? accessToken = await StorageService().getToken();
+
+    final Map<String, String> requestHeaders = {
+      'Content-Type': 'application/json',
+      if (accessToken != null) 'Authorization': 'Bearer $accessToken',
+      ...?headers,
+    };
+    
+    print('ApiService: DELETE $url');
+    print('ApiService: Headers: $requestHeaders');
+
+    var response = await http.delete(url, headers: requestHeaders, body: body);
+
+    // Check for Token Expiry (4002)
+    if (response.statusCode == 4003 || (response.statusCode == 4002)) {
+       final responseBody = jsonDecode(utf8.decode(response.bodyBytes));
+       if (responseBody is Map && responseBody['status'] == 4002) {
+         print('Token expired (4002). Attempting refresh...');
+         final success = await _refreshToken();
+         if (success) {
+           // Retry original request with new token
+           accessToken = await StorageService().getToken();
+           requestHeaders['Authorization'] = 'Bearer $accessToken';
+           response = await http.delete(url, headers: requestHeaders, body: body);
+         } else {
+           print('Token refresh failed.');
+         }
+       }
+    }
+
+    return response;
+  }
+
   Future<bool> _refreshToken() async {
     try {
       final String? refreshToken = await StorageService().getRefreshToken();

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:front_flutter/src/core/services/api_service.dart';
+import 'package:front_flutter/src/features/home/models/home_response.dart';
 
 class CoupleService {
   Future<String> generateInvitationCode() async {
@@ -38,6 +39,56 @@ class CoupleService {
     } catch (e) {
       print('CoupleService Connect Error: $e');
       return false;
+    }
+  }
+  
+  Future<bool> disconnectCouple() async {
+    try {
+      final response = await ApiService().delete('/api/couples');
+      
+      if (response.statusCode == 200) {
+        return true;
+      } else {
+        print('Disconnect failed: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('CoupleService Disconnect Error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateAdditionalInfo(String startDate) async {
+    try {
+      final response = await ApiService().put(
+        '/api/couples/additional-info',
+        body: jsonEncode({'startDate': startDate}),
+      );
+
+      if (response.statusCode == 200) {
+        return true;
+      } else {
+        print('Update additional info failed: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('CoupleService Update Info Error: $e');
+      return false;
+    }
+  }
+
+  Future<HomeResponse?> getHomeData() async {
+    try {
+      final response = await ApiService().get('/api/home/couples');
+      
+      if (response.statusCode == 200) {
+         final data = jsonDecode(utf8.decode(response.bodyBytes));
+         return HomeResponse.fromJson(data['data']);
+      }
+      return null;
+    } catch (e) {
+      print('Get Home Data Error: $e');
+      return null;
     }
   }
 }

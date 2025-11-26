@@ -2,9 +2,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:front_flutter/src/core/services/storage_service.dart';
+import 'package:front_flutter/src/features/authentication/providers/user_provider.dart';
 import 'package:front_flutter/src/features/authentication/services/auth_service.dart';
 import 'package:front_flutter/src/features/authentication/services/kakao_auth_service.dart';
 import 'package:front_flutter/src/features/couple/services/couple_service.dart';
+import 'package:front_flutter/src/features/couple/screens/couple_info_screen.dart';
+import 'package:front_flutter/src/features/couple/screens/couple_onboarding_screen.dart';
+import 'package:provider/provider.dart';
 
 class MyPageScreen extends StatefulWidget {
   const MyPageScreen({super.key});
@@ -14,8 +18,6 @@ class MyPageScreen extends StatefulWidget {
 }
 
 class _MyPageScreenState extends State<MyPageScreen> {
-  // Mock state for demonstration. In real app, fetch from user profile.
-  bool _isCouple = false; 
   
   void _showConnectCoupleBottomSheet(BuildContext context) {
     showModalBottomSheet(
@@ -38,9 +40,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
     ).then((_) {
       // Refresh parent state if needed when sheet closes
       // For example if we want to update the "Couple Info" visibility immediately if connected
-      if (mounted) {
-        setState(() {});
-      }
+      // Provider handles this automatically now
     });
   }
 
@@ -52,10 +52,10 @@ class _MyPageScreenState extends State<MyPageScreen> {
       ),
       body: ListView(
         children: [
-          const UserAccountsDrawerHeader(
-            accountName: Text("User Name"), // Placeholder
-            accountEmail: Text("user@example.com"), // Placeholder
-            currentAccountPicture: CircleAvatar(
+          UserAccountsDrawerHeader(
+            accountName: Text(context.watch<UserProvider>().name),
+            accountEmail: const Text("user@example.com"), // Placeholder until email is in API
+            currentAccountPicture: const CircleAvatar(
               child: Icon(Icons.person, size: 40),
             ),
           ),
@@ -66,15 +66,21 @@ class _MyPageScreenState extends State<MyPageScreen> {
               // TODO: Implement My Info
             },
           ),
-          if (_isCouple)
+          if (context.watch<UserProvider>().isCouple)
             ListTile(
               leading: const Icon(Icons.favorite, color: Colors.pink),
               title: const Text('커플 정보 보기'),
+              subtitle: Text(
+                '❤️ ${context.watch<UserProvider>().coupleInfo?.partnerName}님과 ${context.watch<UserProvider>().coupleInfo?.daysCount}일째',
+              ),
               onTap: () {
-                // TODO: Implement Couple Info
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const CoupleInfoScreen()),
+                );
               },
             ),
-          if (!_isCouple)
+          if (!context.watch<UserProvider>().isCouple)
             ListTile(
               leading: const Icon(Icons.favorite_border),
               title: const Text('커플 연결하기'),
@@ -371,9 +377,13 @@ class _ConnectCoupleBottomSheetState extends State<ConnectCoupleBottomSheet> {
                       if (success) {
                         if (context.mounted) {
                           Navigator.pop(context); // Close BottomSheet
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('커플 연결 성공! 🎉')),
+                          // Navigate to Onboarding Screen
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const CoupleOnboardingScreen()),
                           );
+                          // Update provider state
+                          context.read<UserProvider>().fetchHomeData();
                         }
                       } else {
                         if (context.mounted) {

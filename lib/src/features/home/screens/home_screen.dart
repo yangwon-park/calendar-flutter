@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:front_flutter/src/features/authentication/services/auth_service.dart';
+import 'package:front_flutter/src/features/authentication/providers/user_provider.dart';
 import 'package:front_flutter/src/features/events/models/category_model.dart';
 import 'package:front_flutter/src/features/events/models/event_model.dart';
+import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -27,6 +29,11 @@ class _HomeScreenState extends State<HomeScreen> {
       Category(id: '2', name: '기념일', emoticon: '❤️'),
       Category(id: '3', name: '운동', emoticon: '💪'),
     ];
+    
+    // Check couple status and fetch home data
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<UserProvider>().fetchHomeData();
+    });
   }
 
   List<Event> _getEventsForDay(DateTime day) {
