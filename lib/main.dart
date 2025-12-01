@@ -5,6 +5,8 @@ import 'package:front_flutter/src/features/authentication/screens/login_screen.d
 import 'package:front_flutter/src/features/home/screens/home_screen.dart';
 import 'package:front_flutter/src/features/mypage/screens/my_page_screen.dart';
 import 'package:front_flutter/src/features/authentication/providers/user_provider.dart';
+import 'package:front_flutter/src/features/calendar/providers/calendar_provider.dart';
+import 'package:front_flutter/src/features/calendar/screens/calendar_management_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 import 'package:provider/provider.dart';
@@ -23,6 +25,7 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(create: (_) => CalendarProvider()),
       ],
       child: MyApp(initialRoute: initialRoute),
     ),
@@ -56,6 +59,7 @@ class MyApp extends StatelessWidget {
         '/login': (context) => const LoginScreen(),
         '/home': (context) => HomeScreen(),
         '/mypage': (context) => const MyPageScreen(),
+        '/calendars': (context) => const CalendarManagementScreen(),
       },
     );
   }

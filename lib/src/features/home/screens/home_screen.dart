@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:front_flutter/src/features/authentication/services/auth_service.dart';
+
 import 'package:front_flutter/src/features/authentication/providers/user_provider.dart';
 import 'package:front_flutter/src/features/events/models/category_model.dart';
 import 'package:front_flutter/src/features/events/models/event_model.dart';
+import 'package:front_flutter/src/features/calendar/providers/calendar_provider.dart';
+
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 
@@ -33,6 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Check couple status and fetch home data
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<UserProvider>().fetchHomeData();
+      context.read<CalendarProvider>().fetchCalendars();
     });
   }
 
@@ -40,13 +43,14 @@ class _HomeScreenState extends State<HomeScreen> {
     return _events[day] ?? [];
   }
 
-  void _addEvent(String title, String categoryId) {
+  void _addEvent(String title, String categoryId, int? calendarId) {
     if (_selectedDay != null) {
       final event = Event(
         id: DateTime.now().toString(),
         title: title,
         date: _selectedDay!,
         categoryId: categoryId,
+        calendarId: calendarId,
       );
 
       setState(() {
@@ -117,6 +121,10 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showAddEventDialog() {
     final TextEditingController titleController = TextEditingController();
     String selectedCategoryId = _categories.first.id;
+    
+    // Get calendars from provider
+    final calendars = context.read<CalendarProvider>().calendars;
+    int? selectedCalendarId = calendars.isNotEmpty ? calendars.first.calendarId : null;
 
     showModalBottomSheet(
       context: context,
@@ -165,11 +173,40 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ],
                   ),
+
                   const SizedBox(height: 16),
+                  if (calendars.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        const Text('Calendar: '),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: DropdownButton<int>(
+                            value: selectedCalendarId,
+                            isExpanded: true,
+                            items: calendars.map((calendar) {
+                              return DropdownMenuItem(
+                                value: calendar.calendarId,
+                                child: Text(calendar.name),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              if (value != null) {
+                                setModalState(() {
+                                  selectedCalendarId = value;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   ElevatedButton(
                     onPressed: () {
                       if (titleController.text.isNotEmpty) {
-                        _addEvent(titleController.text, selectedCategoryId);
+                        _addEvent(titleController.text, selectedCategoryId, selectedCalendarId);
                         Navigator.pop(context);
                       }
                     },
@@ -191,6 +228,12 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Couple Calendar'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.calendar_month),
+            onPressed: () {
+              Navigator.of(context).pushNamed('/calendars');
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () {
