@@ -8,17 +8,35 @@ class UserProvider extends ChangeNotifier {
 
   AccountInfo? get accountInfo => _accountInfo;
   CoupleInfo? get coupleInfo => _coupleInfo;
+  List<EventInfo> get eventInfos => _homeData?.eventInfos ?? [];
   bool get isCouple => _coupleInfo != null;
   String get name => _accountInfo?.name ?? '';
 
+  HomeResponse? _homeData;
+
   Future<void> fetchHomeData() async {
     try {
-      final homeData = await CoupleService().getHomeData();
-      if (homeData != null) {
-        _accountInfo = homeData.accountInfo;
-        _coupleInfo = homeData.coupleInfo;
-        notifyListeners();
+      final coupleService = CoupleService();
+      
+      // Fetch both concurrently
+      final results = await Future.wait([
+        coupleService.getHomeEvents(),
+        coupleService.getHomeCoupleInfo(),
+      ]);
+
+      final homeEvents = results[0] as HomeResponse?;
+      final homeCoupleInfo = results[1] as HomeCoupleInfo?;
+
+      if (homeEvents != null) {
+        _homeData = homeEvents;
       }
+      
+      if (homeCoupleInfo != null) {
+        _accountInfo = homeCoupleInfo.accountInfo;
+        _coupleInfo = homeCoupleInfo.coupleInfo;
+      }
+      
+      notifyListeners();
     } catch (e) {
       print('Error fetching home data: $e');
     }

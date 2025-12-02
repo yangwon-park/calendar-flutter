@@ -215,6 +215,8 @@ class ApiService {
       final url = Uri.parse('$_backendUrl/api/auth/refresh');
       print('Attempting to refresh token...');
       
+      print('Sending Refresh Token: $refreshToken'); // Debugging
+      
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},

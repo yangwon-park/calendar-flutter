@@ -77,17 +77,44 @@ class CoupleService {
     }
   }
 
-  Future<HomeResponse?> getHomeData() async {
+  Future<HomeResponse?> getHomeEvents() async {
     try {
-      final response = await ApiService().get('/api/home/couples');
+      final response = await ApiService().get('/api/home');
       
       if (response.statusCode == 200) {
          final data = jsonDecode(utf8.decode(response.bodyBytes));
+         print('Home Events Response: $data');
+         if (data['data'] == null) {
+           return null;
+         }
          return HomeResponse.fromJson(data['data']);
       }
       return null;
     } catch (e) {
-      print('Get Home Data Error: $e');
+      print('Get Home Events Error: $e');
+      return null;
+    }
+  }
+
+  Future<HomeCoupleInfo?> getHomeCoupleInfo() async {
+    try {
+      // Assuming the endpoint for couple info is /api/home/couples based on previous context
+      // or user might have meant the existing one was for couple info.
+      // User said: "Existing couple info fetching is changed to HomeCoupleInfo"
+      // I'll use /api/home/couples for this.
+      final response = await ApiService().get('/api/home/couples');
+      
+      if (response.statusCode == 200) {
+         final data = jsonDecode(utf8.decode(response.bodyBytes));
+         print('Home Couple Info Response: $data');
+         if (data['data'] == null) {
+           return null;
+         }
+         return HomeCoupleInfo.fromJson(data['data']);
+      }
+      return null;
+    } catch (e) {
+      print('Get Home Couple Info Error: $e');
       return null;
     }
   }

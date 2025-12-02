@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:front_flutter/src/features/authentication/providers/user_provider.dart';
 import 'package:front_flutter/src/features/events/models/category_model.dart';
 import 'package:front_flutter/src/features/events/models/event_model.dart';
+import 'package:front_flutter/src/features/calendar/models/calendar_model.dart';
 import 'package:front_flutter/src/features/calendar/providers/calendar_provider.dart';
+import 'package:front_flutter/src/features/events/services/event_service.dart';
 
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -18,8 +20,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
-  Map<DateTime, List<Event>> _events = {};
   List<Category> _categories = [];
+  final EventService _eventService = EventService();
 
   @override
   void initState() {
@@ -34,32 +36,72 @@ class _HomeScreenState extends State<HomeScreen> {
     
     // Check couple status and fetch home data
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<UserProvider>().fetchHomeData();
-      context.read<CalendarProvider>().fetchCalendars();
+      _refreshData();
     });
   }
 
-  List<Event> _getEventsForDay(DateTime day) {
-    return _events[day] ?? [];
+  Future<void> _refreshData() async {
+    // Fetch calendars first to handle potential token refresh sequentially
+    await context.read<CalendarProvider>().fetchCalendars();
+    
+    if (mounted) {
+      await context.read<UserProvider>().fetchHomeData();
+    }
   }
 
-  void _addEvent(String title, String categoryId, int? calendarId) {
-    if (_selectedDay != null) {
-      final event = Event(
-        id: DateTime.now().toString(),
-        title: title,
-        date: _selectedDay!,
-        categoryId: categoryId,
-        calendarId: calendarId,
+  List<Event> _getEventsForDay(DateTime day) {
+    // Get events from UserProvider
+    final eventInfos = context.watch<UserProvider>().eventInfos;
+    
+    // Filter events for the specific day
+    // Normalize day to match keys (Local midnight)
+    final normalizedDay = DateTime(day.year, day.month, day.day);
+    
+    return eventInfos.where((info) {
+      final eventDate = DateTime(info.eventAt.year, info.eventAt.month, info.eventAt.day);
+      return isSameDay(normalizedDay, eventDate);
+    }).map((info) {
+      // Map EventInfo to Event
+      // Note: EventInfo might not have title/description if the API doesn't provide it.
+      // The user's EventInfo only has calendarId, categoryId, eventAt.
+      // We might need to use default title or fetch details if needed.
+      // For now, we'll use a placeholder title or category name.
+      
+      // We need to find the category to get a name/emoticon?
+      // Actually the marker builder uses categoryId to find emoticon.
+      // The list view uses title.
+      // If title is missing, we can use Category Name as title.
+      
+      return Event(
+        id: 'server_event', // No ID in EventInfo
+        title: 'Event', // Placeholder as title is missing in EventInfo
+        date: info.eventAt,
+        categoryId: info.categoryId.toString(),
+        calendarId: info.calendarId,
       );
+    }).toList();
+  }
 
-      setState(() {
-        if (_events[_selectedDay!] != null) {
-          _events[_selectedDay!]!.add(event);
-        } else {
-          _events[_selectedDay!] = [event];
-        }
-      });
+  Future<void> _addEvent(String title, String categoryId, int calendarId, String? description, DateTime eventAt) async {
+    final success = await _eventService.createEvent(
+      calendarId: calendarId,
+      categoryId: categoryId,
+      title: title,
+      description: description,
+      eventAt: eventAt,
+    );
+
+    if (success) {
+      // Refresh home data to get updated events
+      if (mounted) {
+        await _refreshData();
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to create event')),
+        );
+      }
     }
   }
 
@@ -120,7 +162,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showAddEventDialog() {
     final TextEditingController titleController = TextEditingController();
+    final TextEditingController descriptionController = TextEditingController();
     String selectedCategoryId = _categories.first.id;
+    TimeOfDay selectedTime = TimeOfDay.now();
     
     // Get calendars from provider
     final calendars = context.read<CalendarProvider>().calendars;
@@ -146,6 +190,78 @@ class _HomeScreenState extends State<HomeScreen> {
                     controller: titleController,
                     decoration: const InputDecoration(labelText: 'Event Title'),
                     autofocus: true,
+                  ),
+                  const SizedBox(height: 16),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: descriptionController,
+                    decoration: const InputDecoration(labelText: 'Description'),
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Start Date/Time Row (Apple Calendar Style)
+                  Row(
+                    children: [
+                      const Text('시작', style: TextStyle(fontSize: 16)),
+                      const Spacer(),
+                      
+                      // Date Button
+                      GestureDetector(
+                        onTap: () async {
+                          final date = await showDatePicker(
+                            context: context,
+                            initialDate: _selectedDay ?? DateTime.now(),
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                          );
+                          if (date != null) {
+                            setModalState(() {
+                              _selectedDay = date; // Update selected day for the event
+                            });
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${_selectedDay?.year}. ${_selectedDay?.month}. ${_selectedDay?.day}.',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ),
+                      ),
+                      
+                      const SizedBox(width: 8),
+                      
+                      // Time Button
+                      GestureDetector(
+                        onTap: () async {
+                          final time = await showTimePicker(
+                            context: context,
+                            initialTime: selectedTime,
+                          );
+                          if (time != null) {
+                            setModalState(() {
+                              selectedTime = time;
+                            });
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            selectedTime.format(context),
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -204,10 +320,24 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 16),
                   ],
                   ElevatedButton(
-                    onPressed: () {
-                      if (titleController.text.isNotEmpty) {
-                        _addEvent(titleController.text, selectedCategoryId, selectedCalendarId);
+                    onPressed: () async {
+                      if (titleController.text.isNotEmpty && selectedCalendarId != null) {
+                        final eventDate = DateTime(
+                           _selectedDay!.year,
+                           _selectedDay!.month,
+                           _selectedDay!.day,
+                           selectedTime.hour,
+                           selectedTime.minute,
+                        );
+                        
                         Navigator.pop(context);
+                        await _addEvent(
+                          titleController.text, 
+                          selectedCategoryId, 
+                          selectedCalendarId!,
+                          descriptionController.text.isEmpty ? null : descriptionController.text,
+                          eventDate,
+                        );
                       }
                     },
                     child: const Text('Add Event'),
@@ -229,15 +359,21 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('Couple Calendar'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: _showAddEventDialog,
+          ),
+          IconButton(
             icon: const Icon(Icons.calendar_month),
-            onPressed: () {
-              Navigator.of(context).pushNamed('/calendars');
+            onPressed: () async {
+              await Navigator.of(context).pushNamed('/calendars');
+              _refreshData();
             },
           ),
           IconButton(
             icon: const Icon(Icons.person),
-            onPressed: () {
-              Navigator.of(context).pushNamed('/mypage');
+            onPressed: () async {
+              await Navigator.of(context).pushNamed('/mypage');
+              _refreshData();
             },
           ),
         ],
@@ -263,6 +399,7 @@ class _HomeScreenState extends State<HomeScreen> {
             },
             eventLoader: _getEventsForDay,
             calendarStyle: const CalendarStyle(
+              outsideDaysVisible: false,
               todayDecoration: BoxDecoration(
                 color: Colors.blue,
                 shape: BoxShape.circle,
@@ -313,6 +450,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 
                 // Show up to 3 emoticons
                 final eventList = events.cast<Event>();
+                final calendars = context.read<CalendarProvider>().calendars;
+
                 return Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: eventList.take(3).map((event) {
@@ -320,9 +459,45 @@ class _HomeScreenState extends State<HomeScreen> {
                       (c) => c.id == event.categoryId,
                       orElse: () => _categories.first,
                     );
-                    return Text(
-                      category.emoticon,
-                      style: const TextStyle(fontSize: 10),
+                    
+                    final calendar = calendars.firstWhere(
+                      (c) => c.calendarId == event.calendarId,
+                      orElse: () => CalendarModel(
+                        calendarId: -1, 
+                        name: 'Unknown', 
+                        type: 'PERSONAL',
+                        color: '#000000',
+                      ),
+                    );
+
+                    // Parse color string to Color object
+                    Color calendarColor;
+                    try {
+                      calendarColor = Color(int.parse(calendar.color.replaceAll('#', '0xFF')));
+                    } catch (e) {
+                      calendarColor = Colors.black;
+                    }
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 1.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            category.emoticon,
+                            style: const TextStyle(fontSize: 10),
+                          ),
+                          const SizedBox(height: 2),
+                          Container(
+                            width: 4,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: calendarColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ],
+                      ),
                     );
                   }).toList(),
                 );
@@ -345,6 +520,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       title: Text(event.title),
                       subtitle: Text(category.name),
+                      trailing: Text(
+                        '${event.date.hour > 12 ? '오후' : '오전'} ${event.date.hour > 12 ? event.date.hour - 12 : event.date.hour}:${event.date.minute.toString().padLeft(2, '0')}',
+                        style: const TextStyle(color: Colors.grey),
+                      ),
                     );
                   })
                   .toList(),
@@ -352,21 +531,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton.small(
-            heroTag: 'add_category',
-            onPressed: _showAddCategoryDialog,
-            child: const Icon(Icons.category),
-          ),
-          const SizedBox(height: 10),
-          FloatingActionButton(
-            heroTag: 'add_event',
-            onPressed: _showAddEventDialog,
-            child: const Icon(Icons.add),
-          ),
-        ],
+      floatingActionButton: FloatingActionButton.small(
+        heroTag: 'add_category',
+        onPressed: _showAddCategoryDialog,
+        child: const Icon(Icons.category),
       ),
     );
   }
