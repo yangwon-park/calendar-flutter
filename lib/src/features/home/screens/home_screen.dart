@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import 'package:front_flutter/src/features/authentication/providers/user_provider.dart';
@@ -238,16 +239,40 @@ class _HomeScreenState extends State<HomeScreen> {
                       
                       // Time Button
                       GestureDetector(
-                        onTap: () async {
-                          final time = await showTimePicker(
+                        onTap: () {
+                          // Use CupertinoDatePicker for Apple-style scrollable picker
+                          showCupertinoModalPopup(
                             context: context,
-                            initialTime: selectedTime,
+                            builder: (BuildContext context) {
+                              return Container(
+                                height: 216,
+                                padding: const EdgeInsets.only(top: 6.0),
+                                margin: EdgeInsets.only(
+                                  bottom: MediaQuery.of(context).viewInsets.bottom,
+                                ),
+                                color: CupertinoColors.systemBackground.resolveFrom(context),
+                                child: SafeArea(
+                                  top: false,
+                                  child: CupertinoDatePicker(
+                                    initialDateTime: DateTime(
+                                      DateTime.now().year,
+                                      DateTime.now().month,
+                                      DateTime.now().day,
+                                      selectedTime.hour,
+                                      selectedTime.minute,
+                                    ),
+                                    mode: CupertinoDatePickerMode.time,
+                                    use24hFormat: false,
+                                    onDateTimeChanged: (DateTime newDateTime) {
+                                      setModalState(() {
+                                        selectedTime = TimeOfDay.fromDateTime(newDateTime);
+                                      });
+                                    },
+                                  ),
+                                ),
+                              );
+                            },
                           );
-                          if (time != null) {
-                            setModalState(() {
-                              selectedTime = time;
-                            });
-                          }
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -400,20 +425,42 @@ class _HomeScreenState extends State<HomeScreen> {
             eventLoader: _getEventsForDay,
             calendarStyle: const CalendarStyle(
               outsideDaysVisible: false,
-              todayDecoration: BoxDecoration(
-                color: Colors.blue,
-                shape: BoxShape.circle,
-              ),
-              selectedDecoration: BoxDecoration(
-                color: Colors.deepPurple,
-                shape: BoxShape.circle,
-              ),
             ),
             headerStyle: const HeaderStyle(
               formatButtonVisible: false,
               titleCentered: true,
             ),
             calendarBuilders: CalendarBuilders(
+              selectedBuilder: (context, day, focusedDay) {
+                final isToday = isSameDay(day, DateTime.now());
+                return Center(
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: isToday ? Colors.pink : Colors.deepPurple,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${day.day}',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ),
+                );
+              },
+              todayBuilder: (context, day, focusedDay) {
+                return Center(
+                  child: Text(
+                    '${day.day}',
+                    style: const TextStyle(
+                      color: Colors.pink,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                );
+              },
               defaultBuilder: (context, day, focusedDay) {
                 if (day.weekday == DateTime.sunday) {
                   return Center(
@@ -452,54 +499,57 @@ class _HomeScreenState extends State<HomeScreen> {
                 final eventList = events.cast<Event>();
                 final calendars = context.read<CalendarProvider>().calendars;
 
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: eventList.take(3).map((event) {
-                    final category = _categories.firstWhere(
-                      (c) => c.id == event.categoryId,
-                      orElse: () => _categories.first,
-                    );
-                    
-                    final calendar = calendars.firstWhere(
-                      (c) => c.calendarId == event.calendarId,
-                      orElse: () => CalendarModel(
-                        calendarId: -1, 
-                        name: 'Unknown', 
-                        type: 'PERSONAL',
-                        color: '#000000',
-                      ),
-                    );
+                return Positioned(
+                  bottom: 1,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: eventList.take(3).map((event) {
+                      final category = _categories.firstWhere(
+                        (c) => c.id == event.categoryId,
+                        orElse: () => _categories.first,
+                      );
+                      
+                      final calendar = calendars.firstWhere(
+                        (c) => c.calendarId == event.calendarId,
+                        orElse: () => CalendarModel(
+                          calendarId: -1, 
+                          name: 'Unknown', 
+                          type: 'PERSONAL',
+                          color: '#000000',
+                        ),
+                      );
 
-                    // Parse color string to Color object
-                    Color calendarColor;
-                    try {
-                      calendarColor = Color(int.parse(calendar.color.replaceAll('#', '0xFF')));
-                    } catch (e) {
-                      calendarColor = Colors.black;
-                    }
+                      // Parse color string to Color object
+                      Color calendarColor;
+                      try {
+                        calendarColor = Color(int.parse(calendar.color.replaceAll('#', '0xFF')));
+                      } catch (e) {
+                        calendarColor = Colors.black;
+                      }
 
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 1.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            category.emoticon,
-                            style: const TextStyle(fontSize: 10),
-                          ),
-                          const SizedBox(height: 2),
-                          Container(
-                            width: 4,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: calendarColor,
-                              shape: BoxShape.circle,
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 1.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              category.emoticon,
+                              style: const TextStyle(fontSize: 10),
                             ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
+                            const SizedBox(height: 2),
+                            Container(
+                              width: 4,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: calendarColor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
                 );
               },
             ),
