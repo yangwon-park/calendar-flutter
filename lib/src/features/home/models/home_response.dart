@@ -37,20 +37,23 @@ class HomeCoupleInfo {
 
 class EventInfo {
   final int calendarId;
-  final int categoryId; // Changed to int as per user request (Long -> int)
+  final int categoryId;
   final DateTime eventAt;
+  final String title;
 
   EventInfo({
     required this.calendarId,
     required this.categoryId,
     required this.eventAt,
+    required this.title,
   });
 
   factory EventInfo.fromJson(Map<String, dynamic> json) {
     return EventInfo(
       calendarId: json['calendarId'],
-      categoryId: json['categoryId'], // Assuming int
+      categoryId: json['categoryId'],
       eventAt: DateTime.parse(json['eventAt']),
+      title: json['title'] ?? 'Event', // Fallback if null, though user said it's added
     );
   }
 }

@@ -75,7 +75,7 @@ class _HomeScreenState extends State<HomeScreen> {
       
       return Event(
         id: 'server_event', // No ID in EventInfo
-        title: 'Event', // Placeholder as title is missing in EventInfo
+        title: info.title,
         date: info.eventAt,
         categoryId: info.categoryId.toString(),
         calendarId: info.calendarId,
