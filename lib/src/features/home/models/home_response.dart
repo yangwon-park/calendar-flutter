@@ -38,22 +38,28 @@ class HomeCoupleInfo {
 class EventInfo {
   final int calendarId;
   final int categoryId;
-  final DateTime eventAt;
+  final DateTime startAt;
+  final DateTime? endAt;
   final String title;
+  final bool isAllDay;
 
   EventInfo({
     required this.calendarId,
     required this.categoryId,
-    required this.eventAt,
+    required this.startAt,
+    this.endAt,
     required this.title,
+    this.isAllDay = false,
   });
 
   factory EventInfo.fromJson(Map<String, dynamic> json) {
     return EventInfo(
       calendarId: json['calendarId'],
       categoryId: json['categoryId'],
-      eventAt: DateTime.parse(json['eventAt']),
-      title: json['title'] ?? 'Event', // Fallback if null, though user said it's added
+      startAt: DateTime.parse(json['startAt']),
+      endAt: json['endAt'] != null ? DateTime.parse(json['endAt']) : null,
+      title: json['title'] ?? 'Event',
+      isAllDay: json['isAllDay'] ?? false,
     );
   }
 }

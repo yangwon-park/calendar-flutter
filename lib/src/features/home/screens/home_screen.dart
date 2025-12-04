@@ -7,6 +7,7 @@ import 'package:front_flutter/src/features/events/models/event_model.dart';
 import 'package:front_flutter/src/features/calendar/models/calendar_model.dart';
 import 'package:front_flutter/src/features/calendar/providers/calendar_provider.dart';
 import 'package:front_flutter/src/features/events/services/event_service.dart';
+import 'package:front_flutter/src/features/home/models/home_response.dart';
 
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -50,46 +51,106 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Map<String, int> _calculateEventSlots(List<EventInfo> events) {
+    // Sort events by start time, then duration (longer first), then title
+    final sortedEvents = List<EventInfo>.from(events);
+    sortedEvents.sort((a, b) {
+      int cmp = a.startAt.compareTo(b.startAt);
+      if (cmp != 0) return cmp;
+      
+      final durationA = (a.endAt ?? a.startAt).difference(a.startAt);
+      final durationB = (b.endAt ?? b.startAt).difference(b.startAt);
+      cmp = durationB.compareTo(durationA); // Longer duration first
+      if (cmp != 0) return cmp;
+      
+      return a.title.compareTo(b.title);
+    });
+
+    final slots = <String, int>{};
+    final occupiedSlots = <int, DateTime>{}; // Slot Index -> End Time
+
+    for (final event in sortedEvents) {
+      int slot = 0;
+      final start = DateTime(event.startAt.year, event.startAt.month, event.startAt.day);
+      final end = event.endAt != null 
+          ? DateTime(event.endAt!.year, event.endAt!.month, event.endAt!.day)
+          : start;
+
+      // Find first available slot
+      while (true) {
+        if (!occupiedSlots.containsKey(slot)) {
+          break; // Slot is empty
+        }
+        
+        final occupiedUntil = occupiedSlots[slot]!;
+        if (start.isAfter(occupiedUntil)) {
+          break; // Slot is free after previous event
+        }
+        slot++;
+      }
+
+      // Assign slot
+      final key = '${event.title}_${event.startAt.toIso8601String()}_${event.calendarId}';
+      slots[key] = slot;
+      occupiedSlots[slot] = end;
+    }
+
+    return slots;
+  }
+
   List<Event> _getEventsForDay(DateTime day) {
     // Get events from UserProvider
     final eventInfos = context.watch<UserProvider>().eventInfos;
+    
+    // Calculate slots for ALL events first
+    final eventSlots = _calculateEventSlots(eventInfos);
     
     // Filter events for the specific day
     // Normalize day to match keys (Local midnight)
     final normalizedDay = DateTime(day.year, day.month, day.day);
     
-    return eventInfos.where((info) {
-      final eventDate = DateTime(info.eventAt.year, info.eventAt.month, info.eventAt.day);
-      return isSameDay(normalizedDay, eventDate);
+    final events = eventInfos.where((info) {
+      final startDate = DateTime(info.startAt.year, info.startAt.month, info.startAt.day);
+      final endDate = info.endAt != null 
+          ? DateTime(info.endAt!.year, info.endAt!.month, info.endAt!.day)
+          : startDate;
+          
+      return !normalizedDay.isBefore(startDate) && !normalizedDay.isAfter(endDate);
     }).map((info) {
-      // Map EventInfo to Event
-      // Note: EventInfo might not have title/description if the API doesn't provide it.
-      // The user's EventInfo only has calendarId, categoryId, eventAt.
-      // We might need to use default title or fetch details if needed.
-      // For now, we'll use a placeholder title or category name.
-      
-      // We need to find the category to get a name/emoticon?
-      // Actually the marker builder uses categoryId to find emoticon.
-      // The list view uses title.
-      // If title is missing, we can use Category Name as title.
-      
+      final key = '${info.title}_${info.startAt.toIso8601String()}_${info.calendarId}';
       return Event(
         id: 'server_event', // No ID in EventInfo
         title: info.title,
-        date: info.eventAt,
+        date: info.startAt,
+        endAt: info.endAt,
         categoryId: info.categoryId.toString(),
         calendarId: info.calendarId,
+        slotIndex: eventSlots[key],
+        isAllDay: info.isAllDay,
       );
     }).toList();
+
+    // Sort events to ensure consistent order across days
+    events.sort((a, b) {
+      // Sort by start date first
+      int cmp = a.date.compareTo(b.date);
+      if (cmp != 0) return cmp;
+      // Then by title
+      return a.title.compareTo(b.title);
+    });
+
+    return events;
   }
 
-  Future<void> _addEvent(String title, String categoryId, int calendarId, String? description, DateTime eventAt) async {
+  Future<void> _addEvent(String title, String categoryId, int calendarId, String? description, bool isAllDay, DateTime startAt, DateTime? endAt) async {
     final success = await _eventService.createEvent(
       calendarId: calendarId,
-      categoryId: categoryId,
+      categoryId: int.parse(categoryId),
       title: title,
       description: description,
-      eventAt: eventAt,
+      isAllDay: isAllDay,
+      startAt: startAt,
+      endAt: endAt,
     );
 
     if (success) {
@@ -165,7 +226,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final TextEditingController titleController = TextEditingController();
     final TextEditingController descriptionController = TextEditingController();
     String selectedCategoryId = _categories.first.id;
-    TimeOfDay selectedTime = TimeOfDay.now();
+    
+    DateTime now = DateTime.now();
+    DateTime startDate = _selectedDay ?? now;
+    TimeOfDay startTime = TimeOfDay.now();
+    
+    DateTime endDate = startDate;
+    TimeOfDay endTime = TimeOfDay.fromDateTime(now.add(const Duration(hours: 1)));
+    
+    bool isAllDay = false;
     
     // Get calendars from provider
     final calendars = context.read<CalendarProvider>().calendars;
@@ -193,7 +262,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     autofocus: true,
                   ),
                   const SizedBox(height: 16),
-                  const SizedBox(height: 16),
                   TextField(
                     controller: descriptionController,
                     decoration: const InputDecoration(labelText: 'Description'),
@@ -201,7 +269,24 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 16),
                   
-                  // Start Date/Time Row (Apple Calendar Style)
+                  // All Day Toggle
+                  Row(
+                    children: [
+                      const Text('하루 종일', style: TextStyle(fontSize: 16)),
+                      const Spacer(),
+                      Switch(
+                        value: isAllDay,
+                        onChanged: (value) {
+                          setModalState(() {
+                            isAllDay = value;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Start Date/Time Row
                   Row(
                     children: [
                       const Text('시작', style: TextStyle(fontSize: 16)),
@@ -212,13 +297,17 @@ class _HomeScreenState extends State<HomeScreen> {
                         onTap: () async {
                           final date = await showDatePicker(
                             context: context,
-                            initialDate: _selectedDay ?? DateTime.now(),
+                            initialDate: startDate,
                             firstDate: DateTime(2000),
                             lastDate: DateTime(2100),
                           );
                           if (date != null) {
                             setModalState(() {
-                              _selectedDay = date; // Update selected day for the event
+                              startDate = date;
+                              // Ensure end date is not before start date
+                              if (endDate.isBefore(startDate)) {
+                                endDate = startDate;
+                              }
                             });
                           }
                         },
@@ -229,50 +318,87 @@ class _HomeScreenState extends State<HomeScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            '${_selectedDay?.year}. ${_selectedDay?.month}. ${_selectedDay?.day}.',
+                            '${startDate.year}. ${startDate.month}. ${startDate.day}.',
                             style: const TextStyle(fontSize: 16),
                           ),
                         ),
                       ),
                       
-                      const SizedBox(width: 8),
-                      
-                      // Time Button
-                      GestureDetector(
-                        onTap: () {
-                          // Use CupertinoDatePicker for Apple-style scrollable picker
-                          showCupertinoModalPopup(
-                            context: context,
-                            builder: (BuildContext context) {
-                              return Container(
-                                height: 216,
-                                padding: const EdgeInsets.only(top: 6.0),
-                                margin: EdgeInsets.only(
-                                  bottom: MediaQuery.of(context).viewInsets.bottom,
-                                ),
-                                color: CupertinoColors.systemBackground.resolveFrom(context),
-                                child: SafeArea(
-                                  top: false,
-                                  child: CupertinoDatePicker(
-                                    initialDateTime: DateTime(
-                                      DateTime.now().year,
-                                      DateTime.now().month,
-                                      DateTime.now().day,
-                                      selectedTime.hour,
-                                      selectedTime.minute,
-                                    ),
-                                    mode: CupertinoDatePickerMode.time,
-                                    use24hFormat: false,
-                                    onDateTimeChanged: (DateTime newDateTime) {
-                                      setModalState(() {
-                                        selectedTime = TimeOfDay.fromDateTime(newDateTime);
-                                      });
-                                    },
+                      if (!isAllDay) ...[
+                        const SizedBox(width: 8),
+                        // Time Button
+                        GestureDetector(
+                          onTap: () {
+                            showCupertinoModalPopup(
+                              context: context,
+                              builder: (BuildContext context) {
+                                return Container(
+                                  height: 216,
+                                  padding: const EdgeInsets.only(top: 6.0),
+                                  margin: EdgeInsets.only(
+                                    bottom: MediaQuery.of(context).viewInsets.bottom,
                                   ),
-                                ),
-                              );
-                            },
+                                  color: CupertinoColors.systemBackground.resolveFrom(context),
+                                  child: SafeArea(
+                                    top: false,
+                                    child: CupertinoDatePicker(
+                                      initialDateTime: DateTime(
+                                        startDate.year,
+                                        startDate.month,
+                                        startDate.day,
+                                        startTime.hour,
+                                        startTime.minute,
+                                      ),
+                                      mode: CupertinoDatePickerMode.time,
+                                      use24hFormat: false,
+                                      onDateTimeChanged: (DateTime newDateTime) {
+                                        setModalState(() {
+                                          startTime = TimeOfDay.fromDateTime(newDateTime);
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[200],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              startTime.format(context),
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // End Date/Time Row
+                  Row(
+                    children: [
+                      const Text('종료', style: TextStyle(fontSize: 16)),
+                      const Spacer(),
+                      
+                      // Date Button
+                      GestureDetector(
+                        onTap: () async {
+                          final date = await showDatePicker(
+                            context: context,
+                            initialDate: endDate,
+                            firstDate: startDate, // Can't end before start
+                            lastDate: DateTime(2100),
                           );
+                          if (date != null) {
+                            setModalState(() {
+                              endDate = date;
+                            });
+                          }
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -281,13 +407,66 @@ class _HomeScreenState extends State<HomeScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            selectedTime.format(context),
+                            '${endDate.year}. ${endDate.month}. ${endDate.day}.',
                             style: const TextStyle(fontSize: 16),
                           ),
                         ),
                       ),
+                      
+                      if (!isAllDay) ...[
+                        const SizedBox(width: 8),
+                        // Time Button
+                        GestureDetector(
+                          onTap: () {
+                            showCupertinoModalPopup(
+                              context: context,
+                              builder: (BuildContext context) {
+                                return Container(
+                                  height: 216,
+                                  padding: const EdgeInsets.only(top: 6.0),
+                                  margin: EdgeInsets.only(
+                                    bottom: MediaQuery.of(context).viewInsets.bottom,
+                                  ),
+                                  color: CupertinoColors.systemBackground.resolveFrom(context),
+                                  child: SafeArea(
+                                    top: false,
+                                    child: CupertinoDatePicker(
+                                      initialDateTime: DateTime(
+                                        endDate.year,
+                                        endDate.month,
+                                        endDate.day,
+                                        endTime.hour,
+                                        endTime.minute,
+                                      ),
+                                      mode: CupertinoDatePickerMode.time,
+                                      use24hFormat: false,
+                                      onDateTimeChanged: (DateTime newDateTime) {
+                                        setModalState(() {
+                                          endTime = TimeOfDay.fromDateTime(newDateTime);
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[200],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              endTime.format(context),
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
+
                   const SizedBox(height: 16),
                   Row(
                     children: [
@@ -347,12 +526,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   ElevatedButton(
                     onPressed: () async {
                       if (titleController.text.isNotEmpty && selectedCalendarId != null) {
-                        final eventDate = DateTime(
-                           _selectedDay!.year,
-                           _selectedDay!.month,
-                           _selectedDay!.day,
-                           selectedTime.hour,
-                           selectedTime.minute,
+                        final startDateTime = DateTime(
+                           startDate.year,
+                           startDate.month,
+                           startDate.day,
+                           isAllDay ? 0 : startTime.hour,
+                           isAllDay ? 0 : startTime.minute,
+                        );
+                        
+                        final endDateTime = DateTime(
+                           endDate.year,
+                           endDate.month,
+                           endDate.day,
+                           isAllDay ? 23 : endTime.hour,
+                           isAllDay ? 59 : endTime.minute,
                         );
                         
                         Navigator.pop(context);
@@ -361,7 +548,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           selectedCategoryId, 
                           selectedCalendarId!,
                           descriptionController.text.isEmpty ? null : descriptionController.text,
-                          eventDate,
+                          isAllDay,
+                          startDateTime,
+                          endDateTime,
                         );
                       }
                     },
@@ -409,6 +598,7 @@ class _HomeScreenState extends State<HomeScreen> {
             locale: 'ko_KR',
             firstDay: DateTime.utc(2020, 1, 1),
             lastDay: DateTime.utc(2030, 12, 31),
+            rowHeight: 64.0,
             focusedDay: _focusedDay,
             selectedDayPredicate: (day) {
               return isSameDay(_selectedDay, day);
@@ -433,18 +623,27 @@ class _HomeScreenState extends State<HomeScreen> {
             calendarBuilders: CalendarBuilders(
               selectedBuilder: (context, day, focusedDay) {
                 final isToday = isSameDay(day, DateTime.now());
-                return Center(
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: isToday ? Colors.pink : Colors.deepPurple,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        '${day.day}',
-                        style: const TextStyle(color: Colors.white),
+                final color = isToday ? Colors.pink : Colors.deepPurple;
+                
+                return Container(
+                  margin: const EdgeInsets.all(2.0), // Slight spacing between cells
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1), // Light background
+                    borderRadius: BorderRadius.circular(8.0), // Rounded corners
+                    border: Border.all(color: color.withValues(alpha: 0.5), width: 1), // Optional: subtle border
+                  ),
+                  alignment: Alignment.topCenter, // Align text to top (or center?)
+                  // Usually numbers are centered or top-centered. 
+                  // Let's keep it centered but maybe add padding if needed.
+                  // Actually, standard calendar numbers are often centered.
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8.0), // Adjust if needed
+                    child: Text(
+                      '${day.day}',
+                      style: TextStyle(
+                        color: color, // Text matches theme color
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
                       ),
                     ),
                   ),
@@ -495,61 +694,106 @@ class _HomeScreenState extends State<HomeScreen> {
               markerBuilder: (context, day, events) {
                 if (events.isEmpty) return null;
                 
-                // Show up to 3 emoticons
-                final eventList = events.cast<Event>();
+                // Filter events that fit within the max visible slots (e.g., 3)
+                // We use slotIndex to determine visibility
+                final visibleEvents = events.cast<Event>().where((e) => (e.slotIndex ?? 0) < 3).toList();
                 final calendars = context.read<CalendarProvider>().calendars;
 
-                return Positioned(
-                  bottom: 1,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: eventList.take(3).map((event) {
-                      final category = _categories.firstWhere(
-                        (c) => c.id == event.categoryId,
-                        orElse: () => _categories.first,
-                      );
-                      
-                      final calendar = calendars.firstWhere(
-                        (c) => c.calendarId == event.calendarId,
-                        orElse: () => CalendarModel(
-                          calendarId: -1, 
-                          name: 'Unknown', 
-                          type: 'PERSONAL',
-                          color: '#000000',
+                return Stack(
+                  children: visibleEvents.map((event) {
+                    final calendar = calendars.firstWhere(
+                      (c) => c.calendarId == event.calendarId,
+                      orElse: () => CalendarModel(
+                        calendarId: -1, 
+                        name: 'Unknown', 
+                        type: 'PERSONAL',
+                        color: '#000000',
+                      ),
+                    );
+
+                    // Parse color string to Color object
+                    Color calendarColor;
+                    try {
+                      calendarColor = Color(int.parse(calendar.color.replaceAll('#', '0xFF')));
+                    } catch (e) {
+                      calendarColor = Colors.black;
+                    }
+
+                    // Determine position (Start, Middle, End, Single)
+                    final startDate = DateTime(event.date.year, event.date.month, event.date.day);
+                    final endDate = event.endAt != null 
+                        ? DateTime(event.endAt!.year, event.endAt!.month, event.endAt!.day)
+                        : startDate;
+                    final currentDay = DateTime(day.year, day.month, day.day);
+                    
+                    final isStart = isSameDay(currentDay, startDate);
+                    final isEnd = isSameDay(currentDay, endDate);
+                    final isSingleDay = isStart && isEnd;
+                    
+                    // Check if it should be a dot (single day, non-all-day)
+                    // Note: endAt might not be null even for single day events (e.g. timed events).
+                    // So we check if it's single day AND not all day.
+                    final showAsDot = !event.isAllDay && (event.endAt == null || isSingleDay);
+
+                    // Calculate top position based on slot index
+                    // Base top = 42.0 (moved down to avoid selection circle)
+                    // Row height = 5.0 (4.0 bar + 1.0 margin)
+                    final top = 42.0 + ((event.slotIndex ?? 0) * 5.0);
+
+                    if (showAsDot) {
+                      return Positioned(
+                        top: top,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: Container(
+                            width: 16, // Pill width
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: calendarColor,
+                              borderRadius: BorderRadius.circular(2), // Rounded pill
+                            ),
+                          ),
                         ),
                       );
+                    }
 
-                      // Parse color string to Color object
-                      Color calendarColor;
-                      try {
-                        calendarColor = Color(int.parse(calendar.color.replaceAll('#', '0xFF')));
-                      } catch (e) {
-                        calendarColor = Colors.black;
-                      }
+                    // Bar Styling
+                    BorderRadius borderRadius;
+                    EdgeInsets margin;
+                    
+                    if (isSingleDay) {
+                      borderRadius = BorderRadius.circular(4);
+                      margin = const EdgeInsets.symmetric(horizontal: 1.5);
+                    } else if (isStart) {
+                      borderRadius = const BorderRadius.horizontal(left: Radius.circular(4));
+                      margin = const EdgeInsets.only(left: 1.5, right: 0);
+                    } else if (isEnd) {
+                      borderRadius = const BorderRadius.horizontal(right: Radius.circular(4));
+                      margin = const EdgeInsets.only(left: 0, right: 1.5);
+                    } else {
+                      // Middle
+                      borderRadius = BorderRadius.zero;
+                      margin = EdgeInsets.zero;
+                    }
 
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 1.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              category.emoticon,
-                              style: const TextStyle(fontSize: 10),
-                            ),
-                            const SizedBox(height: 2),
-                            Container(
-                              width: 4,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: calendarColor,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ],
+                    return Positioned(
+                      top: top,
+                      left: 0,
+                      right: 0,
+                      height: 4,
+                      child: Container(
+                        margin: margin,
+                        decoration: BoxDecoration(
+                          color: calendarColor.withValues(alpha: 0.5), // Slightly more opaque
+                          borderRadius: borderRadius,
+                          border: isStart 
+                              ? Border(left: BorderSide(color: calendarColor, width: 3)) 
+                              : null,
                         ),
-                      );
-                    }).toList(),
-                  ),
+                      ),
+                    );
+                  }).toList(),
                 );
               },
             ),
@@ -583,10 +827,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       floatingActionButton: FloatingActionButton.small(
         heroTag: 'add_category',
-        onPressed: _showAddCategoryDialog,
-        child: const Icon(Icons.category),
+        onPressed: _showAddEventDialog,
+        child: const Icon(Icons.add),
       ),
     );
   }
 }
-

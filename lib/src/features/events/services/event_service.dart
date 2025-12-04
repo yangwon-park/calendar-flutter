@@ -7,20 +7,24 @@ class EventService {
 
   Future<bool> createEvent({
     required int calendarId,
-    required String categoryId,
+    required int categoryId,
     required String title,
     String? description,
-    required DateTime eventAt,
+    bool isAllDay = false,
+    required DateTime startAt,
+    DateTime? endAt,
   }) async {
     try {
       final response = await _apiService.post(
         '/api/events',
         body: jsonEncode({
           'calendarId': calendarId,
-          'categoryId': int.parse(categoryId),
+          'categoryId': categoryId,
           'title': title,
           'description': description,
-          'eventAt': eventAt.toIso8601String(),
+          'isAllDay': isAllDay,
+          'startAt': startAt.toIso8601String(),
+          'endAt': endAt?.toIso8601String(),
         }),
       );
 
