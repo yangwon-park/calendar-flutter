@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:front_flutter/src/core/services/storage_service.dart';
 import 'package:front_flutter/src/features/authentication/screens/login_screen.dart';
+import 'package:front_flutter/src/features/authentication/screens/splash_screen.dart';
 import 'package:front_flutter/src/features/home/screens/home_screen.dart';
 import 'package:front_flutter/src/features/mypage/screens/my_page_screen.dart';
 import 'package:front_flutter/src/features/authentication/providers/user_provider.dart';
@@ -17,25 +17,19 @@ void main() async {
   await initializeDateFormatting();
   KakaoSdk.init(nativeAppKey: '92146bf0744fd09558e95de9c9f4249a');
 
-  // Check for stored token
-  final String? token = await StorageService().getToken();
-  final String initialRoute = token != null ? '/home' : '/login';
-
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => UserProvider()),
         ChangeNotifierProvider(create: (_) => CalendarProvider()),
       ],
-      child: MyApp(initialRoute: initialRoute),
+      child: const MyApp(),
     ),
   );
 }
 
 class MyApp extends StatelessWidget {
-  final String initialRoute;
-
-  const MyApp({super.key, required this.initialRoute});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +48,7 @@ class MyApp extends StatelessWidget {
         Locale('ko', 'KR'),
         Locale('en', 'US'),
       ],
-      initialRoute: initialRoute,
+      home: const SplashScreen(),
       routes: {
         '/login': (context) => const LoginScreen(),
         '/home': (context) => HomeScreen(),

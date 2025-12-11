@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:front_flutter/src/features/calendar/models/calendar_model.dart';
 import 'package:front_flutter/src/features/calendar/services/calendar_service.dart';
 
+import 'package:front_flutter/src/core/errors/exceptions.dart';
+
 class CalendarProvider extends ChangeNotifier {
   final CalendarService _calendarService = CalendarService();
   List<CalendarModel> _calendars = [];
@@ -18,6 +20,7 @@ class CalendarProvider extends ChangeNotifier {
       _calendars = await _calendarService.getCalendars();
     } catch (e) {
       print('Error in CalendarProvider: $e');
+      if (e is UnauthorizedException) rethrow;
     } finally {
       _isLoading = false;
       notifyListeners();

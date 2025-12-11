@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:front_flutter/src/core/errors/exceptions.dart';
 import 'package:front_flutter/src/features/couple/services/couple_service.dart';
 import 'package:front_flutter/src/features/home/models/home_response.dart';
 
@@ -39,6 +40,7 @@ class UserProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       print('Error fetching home data: $e');
+      if (e is UnauthorizedException) rethrow;
     }
   }
   

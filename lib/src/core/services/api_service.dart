@@ -248,9 +248,15 @@ class ApiService {
           print('Failed to parse new tokens from refresh response');
         }
       }
+      
+      // If we reach here, refresh failed. Clear tokens.
+      print('Token refresh failed with status ${response.statusCode}. Clearing tokens.');
+      await StorageService().deleteToken();
       return false;
+      
     } catch (e) {
       print('Refresh Error: $e');
+      await StorageService().deleteToken();
       return false;
     }
   }

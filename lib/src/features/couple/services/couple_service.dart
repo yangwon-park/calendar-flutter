@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:front_flutter/src/core/errors/exceptions.dart';
 import 'package:front_flutter/src/core/services/api_service.dart';
 import 'package:front_flutter/src/features/home/models/home_response.dart';
 
@@ -89,9 +90,15 @@ class CoupleService {
          }
          return HomeResponse.fromJson(data['data']);
       }
+      
+      if (response.statusCode == 401 || response.statusCode == 403 || response.statusCode == 4002 || response.statusCode == 4003) {
+        throw UnauthorizedException();
+      }
+      
       return null;
     } catch (e) {
       print('Get Home Events Error: $e');
+      if (e is UnauthorizedException) rethrow;
       return null;
     }
   }
@@ -112,9 +119,15 @@ class CoupleService {
          }
          return HomeCoupleInfo.fromJson(data['data']);
       }
+      
+      if (response.statusCode == 401 || response.statusCode == 403 || response.statusCode == 4002 || response.statusCode == 4003) {
+        throw UnauthorizedException();
+      }
+
       return null;
     } catch (e) {
       print('Get Home Couple Info Error: $e');
+      if (e is UnauthorizedException) rethrow;
       return null;
     }
   }

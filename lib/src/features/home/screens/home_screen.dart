@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+import 'package:front_flutter/src/core/errors/exceptions.dart';
 import 'package:front_flutter/src/features/authentication/providers/user_provider.dart';
 import 'package:front_flutter/src/features/events/models/category_model.dart';
 import 'package:front_flutter/src/features/events/models/event_model.dart';
@@ -43,11 +44,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _refreshData() async {
-    // Fetch calendars first to handle potential token refresh sequentially
-    await context.read<CalendarProvider>().fetchCalendars();
-    
-    if (mounted) {
-      await context.read<UserProvider>().fetchHomeData();
+    try {
+      // Fetch calendars first to handle potential token refresh sequentially
+      await context.read<CalendarProvider>().fetchCalendars();
+      
+      if (mounted) {
+        await context.read<UserProvider>().fetchHomeData();
+      }
+    } on UnauthorizedException {
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      }
+    } catch (e) {
+      print('Error refreshing data: $e');
     }
   }
 
